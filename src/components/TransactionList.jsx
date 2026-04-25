@@ -34,7 +34,7 @@ export default function TransactionList() {
                 {transaction.healthInsurance && <span style={{ fontWeight: '400', color: 'var(--text-secondary)', marginLeft: '0.5rem' }}>({transaction.healthInsurance})</span>}
               </p>
               <div style={{ display: 'flex', gap: '0.75rem', fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.25rem', flexWrap: 'wrap' }}>
-                <span>{new Date(transaction.date).toLocaleDateString()} {transaction.time ? ` - ${transaction.time}hs` : ''}</span>
+                <span>{transaction.date.split('-').reverse().join('/')} {transaction.time ? ` - ${transaction.time}hs` : ''}</span>
                 <span>•</span>
                 <span style={{ textTransform: 'capitalize' }}>
                   {transaction.paymentMethod === 'cash' ? 'Efectivo' : 

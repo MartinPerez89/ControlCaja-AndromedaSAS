@@ -76,17 +76,21 @@ export default function TransactionForm() {
       amount: rawAmount
     });
 
+    const newNow = new Date();
+    const newTime = newNow.toTimeString().slice(0, 5);
+    const newYear = newNow.getFullYear();
+    const newMonth = String(newNow.getMonth() + 1).padStart(2, '0');
+    const newDay = String(newNow.getDate()).padStart(2, '0');
+    const newLocalDate = `${newYear}-${newMonth}-${newDay}`;
+
     setFormData(prev => ({
       ...prev,
       description: '',
       amount: '',
       patientName: '',
-      healthInsurance: ''
-      // keep type, date, payment method, shift, and maybe update time?
-      // Let's reset time to current? Or keep last? Usually current is better.
-      // Actually, if doing multiple entries, maybe keep date/time? 
-      // Let's reset time to current "now" for next entry? Or just leave it. 
-      // User might want to enter another one at same time. Let's leave it.
+      healthInsurance: '',
+      date: newLocalDate,
+      time: newTime
     }));
   };
 

@@ -50,7 +50,8 @@ export const FinanceProvider = ({ children }) => {
        if (filter === 'weekly') {
          const oneWeekAgo = new Date();
          oneWeekAgo.setDate(now.getDate() - 7);
-         return new Date(t.date) >= oneWeekAgo;
+         // Append T00:00:00 to force local time parsing
+         return new Date(`${t.date}T00:00:00`) >= oneWeekAgo;
        }
        
        if (filter === 'monthly') {
