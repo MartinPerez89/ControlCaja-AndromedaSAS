@@ -68,12 +68,6 @@ input, select {
   padding: 1.5rem;
   box-shadow: var(--shadow-md);
   border: 1px solid var(--bg-tertiary);
-  transition: transform 0.2s, box-shadow 0.2s;
-}
-
-.card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-lg);
 }
 
 .btn {
