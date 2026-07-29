@@ -4,9 +4,8 @@ import { useFinance } from '../context/FinanceContext';
 export default function TransactionForm() {
   const { addTransaction } = useFinance();
   
-  // Determine default shift based on current hour
-  const currentHour = new Date().getHours();
-  const defaultShift = (currentHour >= 8 && currentHour < 14) ? 'morning' : 'afternoon';
+  // Default shift set to 'afternoon' (Tarde)
+  const defaultShift = 'afternoon';
   
   // Get current time formatted as HH:mm
   const now = new Date();
@@ -19,16 +18,34 @@ export default function TransactionForm() {
   const day = String(today.getDate()).padStart(2, '0');
   const localDate = `${year}-${month}-${day}`;
 
+  const CATEGORIES = {
+    income: [
+      { value: 'copago',         label: 'Copago' },
+      { value: 'particular',     label: 'Pago Particular' },
+      { value: 'otros_ingresos', label: 'Otros Ingresos' },
+    ],
+    expense: [
+      { value: 'honorarios',     label: 'Honorarios' },
+      { value: 'insumos',        label: 'Insumos / Materiales' },
+      { value: 'servicios',      label: 'Servicios' },
+      { value: 'otros_egresos',  label: 'Otros Egresos' },
+    ]
+  };
+
   const [formData, setFormData] = useState({
     description: '',
     amount: '', // visual formatted value
     type: 'income',
+    category: 'copago',
     paymentMethod: 'cash',
     date: localDate,
     time: currentTime,
     patientName: '',
     healthInsurance: '',
-    shift: defaultShift
+    shift: 'afternoon',
+    professional: 'Erika Morales',
+    paymentPeriod: 'Semanal',
+    extraNotes: ''
   });
 
   const handleAmountChange = (e) => {
@@ -70,9 +87,15 @@ export default function TransactionForm() {
     
     if (isNaN(rawAmount)) return;
 
+    let finalDescription = formData.description;
+    if (formData.type === 'expense' && formData.category === 'honorarios') {
+      finalDescription = `${formData.professional} - ${formData.paymentPeriod}${formData.extraNotes ? ` (${formData.extraNotes})` : ''}`;
+    }
+
     // We pass the raw numeric amount to context, but keep other string fields
     addTransaction({
       ...formData,
+      description: finalDescription,
       amount: rawAmount
     });
 
@@ -86,13 +109,48 @@ export default function TransactionForm() {
     setFormData(prev => ({
       ...prev,
       description: '',
+      extraNotes: '',
       amount: '',
       patientName: '',
       healthInsurance: '',
       date: newLocalDate,
       time: newTime
+      // type, category, paymentMethod, shift, professional, paymentPeriod se mantienen para agilizar la carga
     }));
   };
+
+  // Helper getters for dynamic fields
+  const isIncome = formData.type === 'income';
+  const isHonorarios = formData.type === 'expense' && formData.category === 'honorarios';
+  const showPatient = isIncome && (formData.category === 'copago' || formData.category === 'particular');
+  const showHealthInsurance = isIncome && formData.category === 'copago';
+
+  const getDescriptionConfig = () => {
+    if (isIncome) {
+      if (formData.category === 'copago') {
+        return { label: 'Concepto / Observaciones', placeholder: 'Ej: Sesión kinesiología, Copago #3...', required: false };
+      }
+      if (formData.category === 'particular') {
+        return { label: 'Concepto / Observaciones', placeholder: 'Ej: Evaluación inicial, Tratamiento completo...', required: false };
+      }
+      return { label: 'Concepto / Descripción del Ingreso', placeholder: 'Ej: Venta de insumo, Alquiler de espacio...', required: true };
+    }
+    
+    // Egresos
+    switch (formData.category) {
+      case 'honorarios':
+        return { label: 'Profesional / Detalle del Pago', placeholder: '', required: false };
+      case 'insumos':
+        return { label: 'Detalle de Insumos / Materiales', placeholder: 'Ej: Electrodos, Gel conductor, Barbijos...', required: true };
+      case 'servicios':
+        return { label: 'Servicio / Proveedor', placeholder: 'Ej: Factura Edesur, Internet Fibra, Alquiler...', required: true };
+      case 'otros_egresos':
+      default:
+        return { label: 'Concepto / Descripción del Gasto', placeholder: 'Ej: Mantenimiento de equipo, Artículos de limpieza...', required: true };
+    }
+  };
+
+  const descConfig = getDescriptionConfig();
 
   return (
     <div className="card">
@@ -105,7 +163,7 @@ export default function TransactionForm() {
               type="button"
               className={`btn ${formData.type === 'income' ? 'btn-primary' : ''}`}
               style={{ flex: 1, backgroundColor: formData.type === 'income' ? 'var(--color-income)' : 'var(--bg-tertiary)', color: 'white' }}
-              onClick={() => setFormData({ ...formData, type: 'income' })}
+              onClick={() => setFormData({ ...formData, type: 'income', category: 'copago' })}
             >
               Ingreso
             </button>
@@ -113,11 +171,24 @@ export default function TransactionForm() {
               type="button"
               className={`btn ${formData.type === 'expense' ? 'btn-primary' : ''}`}
               style={{ flex: 1, backgroundColor: formData.type === 'expense' ? 'var(--color-expense)' : 'var(--bg-tertiary)', color: 'white' }}
-              onClick={() => setFormData({ ...formData, type: 'expense' })}
+              onClick={() => setFormData({ ...formData, type: 'expense', category: 'honorarios' })}
             >
               Egreso
             </button>
           </div>
+        </div>
+
+        <div className="form-group">
+          <label className="form-label">Categoría</label>
+          <select
+            className="form-select"
+            value={formData.category}
+            onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+          >
+            {CATEGORIES[formData.type].map(cat => (
+              <option key={cat.value} value={cat.value}>{cat.label}</option>
+            ))}
+          </select>
         </div>
 
         <div className="flex-between" style={{ gap: '1rem' }}>
@@ -146,38 +217,87 @@ export default function TransactionForm() {
           </div>
         </div>
 
-        <div className="form-group">
-          <label className="form-label">Paciente (Opcional)</label>
-          <input
-            type="text"
-            className="form-input"
-            placeholder="Nombre del paciente"
-            value={formData.patientName}
-            onChange={(e) => setFormData({ ...formData, patientName: e.target.value })}
-          />
-        </div>
+        {showPatient && (
+          <div className="form-group">
+            <label className="form-label">Paciente (Opcional)</label>
+            <input
+              type="text"
+              className="form-input"
+              placeholder="Nombre del paciente"
+              value={formData.patientName}
+              onChange={(e) => setFormData({ ...formData, patientName: e.target.value })}
+            />
+          </div>
+        )}
 
-        <div className="form-group">
-          <label className="form-label">Obra Social (Opcional)</label>
-          <input
-            type="text"
-            className="form-input"
-            placeholder="Ej: OSDE, PAMI..."
-            value={formData.healthInsurance}
-            onChange={(e) => setFormData({ ...formData, healthInsurance: e.target.value })}
-          />
-        </div>
+        {showHealthInsurance && (
+          <div className="form-group">
+            <label className="form-label">Obra Social (Opcional)</label>
+            <input
+              type="text"
+              className="form-input"
+              placeholder="Ej: OSDE, PAMI..."
+              value={formData.healthInsurance}
+              onChange={(e) => setFormData({ ...formData, healthInsurance: e.target.value })}
+            />
+          </div>
+        )}
 
-        <div className="form-group">
-          <label className="form-label">Concepto / Descripción</label>
-          <input
-            type="text"
-            className="form-input"
-            placeholder="Detalle (opcional)"
-            value={formData.description}
-            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-          />
-        </div>
+        {isHonorarios ? (
+          <>
+            <div className="flex-between" style={{ gap: '1rem' }}>
+              <div className="form-group" style={{ flex: 1 }}>
+                <label className="form-label">Profesional</label>
+                <select
+                  className="form-select"
+                  value={formData.professional}
+                  onChange={(e) => setFormData({ ...formData, professional: e.target.value })}
+                >
+                  <option value="Erika Morales">Erika Morales</option>
+                  <option value="Ariel Jimenez">Ariel Jimenez</option>
+                </select>
+              </div>
+
+              <div className="form-group" style={{ flex: 1 }}>
+                <label className="form-label">Período de Pago</label>
+                <select
+                  className="form-select"
+                  value={formData.paymentPeriod}
+                  onChange={(e) => setFormData({ ...formData, paymentPeriod: e.target.value })}
+                >
+                  <option value="Semanal">Semanal</option>
+                  <option value="Semana 1">Semana 1</option>
+                  <option value="Semana 2">Semana 2</option>
+                  <option value="Semana 3">Semana 3</option>
+                  <option value="Semana 4">Semana 4</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Observaciones (Opcional)</label>
+              <input
+                type="text"
+                className="form-input"
+                placeholder="Ej: Liquidación de prestaciones..."
+                value={formData.extraNotes}
+                onChange={(e) => setFormData({ ...formData, extraNotes: e.target.value })}
+              />
+            </div>
+          </>
+        ) : (
+          <div className="form-group">
+            <label className="form-label">{descConfig.label}</label>
+            <input
+              type="text"
+              className="form-input"
+              placeholder={descConfig.placeholder}
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              required={descConfig.required}
+            />
+          </div>
+        )}
 
         <div className="flex-between" style={{ gap: '1rem' }}>
           <div className="form-group" style={{ flex: 1 }}>

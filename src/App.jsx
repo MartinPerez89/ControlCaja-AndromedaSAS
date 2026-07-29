@@ -6,7 +6,7 @@ import TransactionList from './components/TransactionList';
 function App() {
   return (
     <FinanceProvider>
-      <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+      <div>
         <header style={{ marginBottom: '2rem', textAlign: 'center' }}>
           <h1 style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>Control de Caja - Centro de Rehabilitación ANDROMEDA S.A.S</h1>
           <p style={{ color: 'var(--text-secondary)' }}>Detalle de ingresos y egresos diarios</p>

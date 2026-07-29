@@ -1,5 +1,18 @@
 import { useFinance } from '../context/FinanceContext';
 
+const CATEGORY_LABELS = {
+  // Ingresos
+  copago:         'Copago',
+  particular:     'Pago Particular',
+  obra_social:    'Pago Obra Social',
+  otros_ingresos: 'Otros Ingresos',
+  // Egresos
+  honorarios:     'Honorarios',
+  insumos:        'Insumos / Materiales',
+  servicios:      'Servicios',
+  otros_egresos:  'Otros Egresos',
+};
+
 export default function TransactionList() {
   const { filteredTransactions, deleteTransaction } = useFinance();
 
@@ -29,9 +42,30 @@ export default function TransactionList() {
             }}
           >
             <div>
-              <p style={{ fontWeight: '600' }}>
+            <p style={{ fontWeight: '600', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                 {transaction.patientName ? `${transaction.patientName}` : transaction.description || 'Sin descripción'}
                 {transaction.healthInsurance && <span style={{ fontWeight: '400', color: 'var(--text-secondary)', marginLeft: '0.5rem' }}>({transaction.healthInsurance})</span>}
+                {transaction.category && (
+                  <span style={{
+                    fontSize: '0.7rem',
+                    fontWeight: '700',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.04em',
+                    padding: '0.15rem 0.45rem',
+                    borderRadius: '4px',
+                    backgroundColor: transaction.type === 'income'
+                      ? 'rgba(16, 185, 129, 0.12)'
+                      : 'rgba(244, 63, 94, 0.12)',
+                    color: transaction.type === 'income'
+                      ? 'var(--color-income)'
+                      : 'var(--color-expense)',
+                    border: `1px solid ${transaction.type === 'income'
+                      ? 'rgba(16, 185, 129, 0.25)'
+                      : 'rgba(244, 63, 94, 0.25)'}`,
+                  }}>
+                    {CATEGORY_LABELS[transaction.category] || transaction.category}
+                  </span>
+                )}
               </p>
               <div style={{ display: 'flex', gap: '0.75rem', fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.25rem', flexWrap: 'wrap' }}>
                 <span>{transaction.date.split('-').reverse().join('/')} {transaction.time ? ` - ${transaction.time}hs` : ''}</span>
@@ -60,16 +94,34 @@ export default function TransactionList() {
                 )}
               </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-              <span 
-                style={{ 
-                  fontWeight: 'bold', 
-                  color: transaction.type === 'income' ? 'var(--color-income)' : 'var(--color-expense)' 
-                }}
-              >
-                {transaction.type === 'income' ? '+' : '-'} 
-                {new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(transaction.amount)}
-              </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                <span 
+                  style={{ 
+                    fontWeight: 'bold', 
+                    color: transaction.type === 'income' ? 'var(--color-income)' : 'var(--color-expense)',
+                    fontSize: '1.1rem'
+                  }}
+                >
+                  {transaction.type === 'income' ? '+' : '-'} 
+                  {new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(transaction.amount)}
+                </span>
+                <span 
+                  style={{ 
+                    fontSize: '0.75rem', 
+                    color: 'var(--text-secondary)',
+                    marginTop: '0.25rem',
+                    fontWeight: '500',
+                    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                    padding: '2px 6px',
+                    borderRadius: '4px',
+                    border: '1px solid rgba(255, 255, 255, 0.05)'
+                  }}
+                  title="Saldo acumulado de caja después de este movimiento"
+                >
+                  Saldo: {new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(transaction.runningBalance)}
+                </span>
+              </div>
               <button 
                 onClick={() => deleteTransaction(transaction.id)}
                 style={{ 
