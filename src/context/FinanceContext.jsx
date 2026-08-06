@@ -67,16 +67,14 @@ export const FinanceProvider = ({ children }) => {
     });
 
     let running = 0;
-    // Solo arrastrar el saldo previo acumulado si el filtro activo es 'custom'
-    if (filter === 'custom') {
-      sorted.forEach(t => {
-        if (t.date < startDate) {
-          const val = Number(t.amount);
-          if (t.type === 'income') running += val;
-          else running -= val;
-        }
-      });
-    }
+    // Arrastrar el saldo previo acumulado antes de startDate
+    sorted.forEach(t => {
+      if (t.date < startDate) {
+        const val = Number(t.amount);
+        if (t.type === 'income') running += val;
+        else running -= val;
+      }
+    });
 
     const runningMap = {};
     sorted.forEach(t => {
@@ -129,8 +127,8 @@ export const FinanceProvider = ({ children }) => {
       const isBefore = t.date < startDate;
       const isIn = t.date >= startDate && t.date <= endDate;
 
-      // Arrastrar saldo acumulado previo ÚNICAMENTE en el filtro 'custom'
-      if (isBefore && filter === 'custom') {
+      // Arrastrar saldo acumulado previo a startDate
+      if (isBefore) {
         if (t.type === 'income') {
           initialBalance += val;
         } else {
@@ -154,33 +152,84 @@ export const FinanceProvider = ({ children }) => {
     };
   };
 
-  // RF-004: Calcula ingresos/egresos/neto del mes calendario anterior
+  // RF-006: Calcula ingresos/egresos/neto del período anterior equivalente según el filtro activo
   const getPreviousPeriodBalance = () => {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth(); // 0-indexed
+    const parseLocalDate = (dateStr) => {
+      const [y, m, d] = dateStr.split('-').map(Number);
+      return new Date(y, m - 1, d);
+    };
 
-    const prevFirst = formatDate(new Date(year, month - 1, 1));
-    const prevLast = formatDate(new Date(year, month, 0));
+    let prevStartDateStr = '';
+    let prevEndDateStr = '';
+    let label = 'vs. período anterior';
+
+    if (filter === 'daily') {
+      const d = parseLocalDate(startDate);
+      d.setDate(d.getDate() - 1);
+      prevStartDateStr = formatDate(d);
+      prevEndDateStr = prevStartDateStr;
+      label = 'vs. ayer';
+    } else if (filter === 'weekly') {
+      const start = parseLocalDate(startDate);
+      const end = parseLocalDate(endDate);
+      start.setDate(start.getDate() - 7);
+      end.setDate(end.getDate() - 7);
+      prevStartDateStr = formatDate(start);
+      prevEndDateStr = formatDate(end);
+      label = 'vs. semana anterior';
+    } else if (filter === 'monthly') {
+      const start = parseLocalDate(startDate);
+      const year = start.getFullYear();
+      const month = start.getMonth(); // 0-indexed
+      const prevFirst = new Date(year, month - 1, 1);
+      const prevLast = new Date(year, month, 0);
+      prevStartDateStr = formatDate(prevFirst);
+      prevEndDateStr = formatDate(prevLast);
+      label = 'vs. mes anterior';
+    } else {
+      // Custom: N días inmediatamente anteriores a startDate
+      const start = parseLocalDate(startDate);
+      const end = parseLocalDate(endDate);
+      const diffTime = Math.abs(end.getTime() - start.getTime());
+      const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24)) + 1;
+
+      const prevEnd = new Date(start.getTime());
+      prevEnd.setDate(prevEnd.getDate() - 1);
+
+      const prevStart = new Date(prevEnd.getTime());
+      prevStart.setDate(prevStart.getDate() - (diffDays - 1));
+
+      prevStartDateStr = formatDate(prevStart);
+      prevEndDateStr = formatDate(prevEnd);
+      label = 'vs. período anterior';
+    }
 
     let income = 0;
     let expense = 0;
 
     transactions.forEach(t => {
-      if (t.date >= prevFirst && t.date <= prevLast) {
+      if (t.date >= prevStartDateStr && t.date <= prevEndDateStr) {
         const val = Number(t.amount);
         if (t.type === 'income') income += val;
         else expense += val;
       }
     });
 
-    const hasData = transactions.some(t => t.date >= prevFirst && t.date <= prevLast);
+    const hasPrevTransactions = transactions.some(t => t.date >= prevStartDateStr && t.date <= prevEndDateStr);
+    const hasCurrentTransactions = transactions.some(t => t.date >= startDate && t.date <= endDate);
+    const hasSystemHistory = transactions.some(t => t.date < startDate);
 
     return {
       income,
       expense,
       total: income - expense,
-      hasData
+      hasData: hasPrevTransactions,
+      hasPrevTransactions,
+      hasCurrentTransactions,
+      hasSystemHistory,
+      label,
+      prevStartDate: prevStartDateStr,
+      prevEndDate: prevEndDateStr,
     };
   };
 

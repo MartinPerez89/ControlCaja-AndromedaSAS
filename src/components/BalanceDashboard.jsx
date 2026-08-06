@@ -2,47 +2,92 @@ import { useFinance } from '../context/FinanceContext';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { exportToExcel, exportToPDF } from '../utils/exportUtils';
 
-// RF-003: Componente reutilizable para el indicador de tendencia (RF-004)
-function TrendBadge({ current, previous, hasData, label }) {
-  if (!hasData) {
-    return <span className="trend-no-data">Sin datos comparativos disponibles</span>;
+// RN-006.1 & RN-006.2: Indicador de tendencia contextual y resultado financiero
+function TrendBadge({ current, previous, prevBalance, type = 'income' }) {
+  const label = prevBalance?.label || 'vs. período anterior';
+  const hasPrevTransactions = prevBalance?.hasPrevTransactions ?? prevBalance?.hasData ?? false;
+  const hasCurrentTransactions = prevBalance?.hasCurrentTransactions ?? true;
+  const hasSystemHistory = prevBalance?.hasSystemHistory ?? false;
+
+  // ── RN-006.1: TRATAMIENTO DE DATOS INSUFICIENTES ──
+  // 1. "Primer período registrado": No hay transacciones en el historial del sistema antes del período actual
+  if (!hasSystemHistory && !hasPrevTransactions) {
+    return <span className="trend-no-data">Primer período registrado</span>;
   }
 
+  // 2. "Sin movimientos en el período anterior" / "Sin movimientos para comparar"
+  if (!hasPrevTransactions) {
+    if (!hasCurrentTransactions) {
+      return <span className="trend-no-data">Sin movimientos para comparar</span>;
+    }
+    return <span className="trend-no-data">Sin movimientos en el período anterior</span>;
+  }
+
+  // 3. "Historial insuficiente para realizar la comparación":
+  //    Hubo movimientos en el período comparativo, pero para esta métrica el valor previo es 0 y el actual es distinto de 0
+  //    (Evita mostrar +100%, -100% o porcentajes engañosos)
+  if (previous === 0 && current !== 0) {
+    return <span className="trend-no-data">Historial insuficiente para realizar la comparación</span>;
+  }
+
+  // 4. "Sin movimientos para comparar" cuando ambos son 0
   if (previous === 0 && current === 0) {
-    return (
-      <span className="trend-badge trend-neutral">
-        ➔ Sin variación
-      </span>
-    );
+    return <span className="trend-no-data">Sin movimientos para comparar</span>;
   }
 
-  if (previous === 0) {
-    return (
-      <span className="trend-badge trend-up">
-        ▲ Nuevo período
-      </span>
-    );
-  }
-
+  // ── CÁLCULO DE VARIACIÓN PORCENTUAL VÁLIDA ──
   const pct = ((current - previous) / Math.abs(previous)) * 100;
   const absStr = Math.abs(pct).toFixed(1).replace('.', ',');
 
+  // ── RN-006.2: TRATAMIENTO ESPECÍFICO DE RESULTADO NETO ──
+  if (type === 'net') {
+    if (current > 0) {
+      // Superávit: ▲ Verde (NUNCA mostrar ▼ en superávit)
+      return (
+        <span className="trend-badge trend-up">
+          ▲ {pct > 0 ? `+${absStr}%` : pct < 0 ? `-${absStr}%` : '0%'} {label}
+        </span>
+      );
+    } else if (current < 0) {
+      // Déficit: ▼ Rojo (NUNCA mostrar ▲ en déficit)
+      return (
+        <span className="trend-badge trend-down">
+          ▼ {pct < 0 ? `-${absStr}%` : pct > 0 ? `+${absStr}%` : '0%'} {label}
+        </span>
+      );
+    } else {
+      // Resultado neutro: ▬ Gris
+      return (
+        <span className="trend-badge trend-neutral">
+          ▬ 0% {label}
+        </span>
+      );
+    }
+  }
+
+  // ── INGRESOS Y EGRESOS ──
   if (pct > 0) {
+    const isFavorable = type !== 'expense';
+    const badgeClass = isFavorable ? 'trend-up' : 'trend-down';
+    const symbol = isFavorable ? '▲' : '▼';
     return (
-      <span className="trend-badge trend-up">
-        ▲ +{absStr}% vs. mes anterior
+      <span className={`trend-badge ${badgeClass}`}>
+        {symbol} +{absStr}% {label}
       </span>
     );
   } else if (pct < 0) {
+    const isFavorable = type === 'expense';
+    const badgeClass = isFavorable ? 'trend-up' : 'trend-down';
+    const symbol = isFavorable ? '▲' : '▼';
     return (
-      <span className="trend-badge trend-down">
-        ▼ -{absStr}% vs. mes anterior
+      <span className={`trend-badge ${badgeClass}`}>
+        {symbol} -{absStr}% {label}
       </span>
     );
   } else {
     return (
       <span className="trend-badge trend-neutral">
-        ➔ 0% vs. mes anterior
+        ▬ 0% {label}
       </span>
     );
   }
@@ -213,64 +258,30 @@ export default function BalanceDashboard() {
   return (
     <div style={{ marginBottom: '2rem' }}>
       {/* ── Selector de Período ── */}
+      {/* ── Selector de Período ── */}
       <div className="date-picker-container">
-        <h2 style={{ margin: 0, fontSize: '1.35rem', fontWeight: '800' }}>
-          <span className="section-icon">📊</span>Balance
-        </h2>
+        {/* Fila Superior: Título + Badge de Período + Botón Exportar */}
+        <div className="date-picker-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+            <h2 style={{ margin: 0, fontSize: '1.35rem', fontWeight: '800' }}>
+              <span className="section-icon">📊</span>Balance
+            </h2>
 
-        <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'center', flexWrap: 'wrap' }}>
-          {/* RF-001: Nuevos botones de preset */}
-          <div className="preset-group">
-            <button
-              type="button"
-              className={`preset-tab ${filter === 'daily' ? 'active' : ''}`}
-              onClick={() => changePresetFilter('daily')}
-            >
-              Diario
-            </button>
-            <button
-              type="button"
-              className={`preset-tab ${filter === 'weekly' ? 'active' : ''}`}
-              onClick={() => changePresetFilter('weekly')}
-            >
-              Semanal
-            </button>
-            <button
-              type="button"
-              className={`preset-tab ${filter === 'monthly' ? 'active' : ''}`}
-              onClick={() => changePresetFilter('monthly')}
-            >
-              Mensual
-            </button>
-            <button
-              type="button"
-              className={`preset-tab ${filter === 'custom' ? 'active' : ''}`}
-              onClick={() => changePresetFilter('custom')}
-            >
-              Personalizado
-            </button>
-          </div>
-
-          {/* RF-001: Los inputs solo son visibles en modo 'custom' */}
-          <div className={`date-range-inputs${filter !== 'custom' ? ' hidden' : ''}`}>
-            <div className="date-input-wrapper">
-              <span className="date-input-label">Desde</span>
-              <input
-                type="date"
-                className="date-input-field"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-              />
-            </div>
-            <div style={{ color: 'var(--text-muted)', fontWeight: '600' }}>–</div>
-            <div className="date-input-wrapper">
-              <span className="date-input-label">Hasta</span>
-              <input
-                type="date"
-                className="date-input-field"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-              />
+            {/* RF-003: Etiqueta del período activo */}
+            <div style={{
+              fontSize: '0.78rem',
+              color: 'var(--text-muted)',
+              fontWeight: '500',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.3rem',
+              backgroundColor: 'var(--bg-primary)',
+              padding: '0.35rem 0.75rem',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--bg-tertiary)'
+            }}>
+              <span>📅</span>
+              <span style={{ textTransform: 'capitalize' }}>{getPeriodLabel()}</span>
             </div>
           </div>
 
@@ -322,26 +333,72 @@ export default function BalanceDashboard() {
           </div>
         </div>
 
-        {/* RF-003: Etiqueta del período activo */}
-        <div style={{
-          fontSize: '0.78rem',
-          color: 'var(--text-muted)',
-          fontWeight: '500',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.3rem',
-          marginTop: '0.1rem'
-        }}>
-          <span>📅</span>
-          <span style={{ textTransform: 'capitalize' }}>{getPeriodLabel()}</span>
+        {/* Fila Inferior: Filtros Preset + Inputs de Fecha */}
+        <div className="date-picker-controls">
+          {/* RF-001: Botones de preset */}
+          <div className="preset-group">
+            <button
+              type="button"
+              className={`preset-tab ${filter === 'daily' ? 'active' : ''}`}
+              onClick={() => changePresetFilter('daily')}
+            >
+              Diario
+            </button>
+            <button
+              type="button"
+              className={`preset-tab ${filter === 'weekly' ? 'active' : ''}`}
+              onClick={() => changePresetFilter('weekly')}
+            >
+              Semanal
+            </button>
+            <button
+              type="button"
+              className={`preset-tab ${filter === 'monthly' ? 'active' : ''}`}
+              onClick={() => changePresetFilter('monthly')}
+            >
+              Mensual
+            </button>
+            <button
+              type="button"
+              className={`preset-tab ${filter === 'custom' ? 'active' : ''}`}
+              onClick={() => changePresetFilter('custom')}
+            >
+              Personalizado
+            </button>
+          </div>
+
+          {/* RF-001: Inputs de rango (deshabilitados cuando no es 'custom', siempre visibles) */}
+          <div className="date-range-inputs">
+            <div className={`date-input-wrapper${filter !== 'custom' ? ' disabled' : ''}`}>
+              <span className="date-input-label">Desde</span>
+              <input
+                type="date"
+                className="date-input-field"
+                value={startDate}
+                disabled={filter !== 'custom'}
+                onChange={(e) => setStartDate(e.target.value)}
+              />
+            </div>
+            <div style={{ color: 'var(--text-muted)', fontWeight: '600' }}>–</div>
+            <div className={`date-input-wrapper${filter !== 'custom' ? ' disabled' : ''}`}>
+              <span className="date-input-label">Hasta</span>
+              <input
+                type="date"
+                className="date-input-field"
+                value={endDate}
+                disabled={filter !== 'custom'}
+                onChange={(e) => setEndDate(e.target.value)}
+              />
+            </div>
+          </div>
         </div>
       </div>
 
       {/* ── KPI Grid ── */}
       <div className="dashboard-grid">
 
-        {/* Tarjeta Ingresos */}
-        <div className="kpi-card kpi-card-hero" style={{ gridColumn: filter === 'custom' ? undefined : 'span 7' }}>
+        {/* Tarjeta Ingresos y Egresos del Período */}
+        <div className="kpi-card kpi-card-hero">
           <div className="flow-container">
             {/* Ingresos */}
             <div className="flow-section">
@@ -351,11 +408,12 @@ export default function BalanceDashboard() {
               <span className="kpi-value" style={{ color: 'var(--color-income)' }}>
                 {formatCurrency(balance.income)}
               </span>
-              {/* RF-004 */}
+              {/* RF-006 */}
               <TrendBadge
                 current={balance.income}
                 previous={prevBalance.income}
-                hasData={prevBalance.hasData}
+                prevBalance={prevBalance}
+                type="income"
               />
             </div>
 
@@ -369,11 +427,12 @@ export default function BalanceDashboard() {
               <span className="kpi-value" style={{ color: 'var(--color-expense)' }}>
                 {formatCurrency(balance.expense)}
               </span>
-              {/* RF-004 */}
+              {/* RF-006 */}
               <TrendBadge
                 current={balance.expense}
                 previous={prevBalance.expense}
-                hasData={prevBalance.hasData}
+                prevBalance={prevBalance}
+                type="expense"
               />
             </div>
           </div>
@@ -381,38 +440,38 @@ export default function BalanceDashboard() {
 
         {/* Tarjeta Neto del Período */}
         <div
-          className={`kpi-card kpi-card-net ${balance.total >= 0 ? 'glow-income' : 'glow-expense'}`}
+          className={`kpi-card ${filter === 'custom' ? 'kpi-card-net' : 'kpi-card-net-full'} ${balance.total > 0 ? 'glow-income' : balance.total < 0 ? 'glow-expense' : ''}`}
           style={{
-            backgroundColor: balance.total >= 0 ? 'rgba(16, 185, 129, 0.02)' : 'rgba(244, 63, 94, 0.02)',
-            gridColumn: filter === 'custom' ? undefined : 'span 5'
+            backgroundColor: balance.total > 0 ? 'rgba(16, 185, 129, 0.02)' : balance.total < 0 ? 'rgba(244, 63, 94, 0.02)' : 'rgba(148, 163, 184, 0.02)'
           }}
         >
           <div>
             <span className="kpi-icon">📈</span>
             <span className="kpi-title">Neto del Período</span>
             <div className="kpi-value" style={{
-              color: balance.total >= 0 ? 'var(--color-income)' : 'var(--color-expense)',
+              color: balance.total > 0 ? 'var(--color-income)' : balance.total < 0 ? 'var(--color-expense)' : 'var(--text-secondary)',
               marginTop: '0.25rem'
             }}>
               {balance.total > 0 ? `+${formatCurrency(balance.total)}` : formatCurrency(balance.total)}
             </div>
-            {/* RF-004 */}
+            {/* RF-006 */}
             <TrendBadge
               current={balance.total}
               previous={prevBalance.total}
-              hasData={prevBalance.hasData}
+              prevBalance={prevBalance}
+              type="net"
             />
           </div>
           <span className="kpi-subtext" style={{
-            color: balance.total >= 0 ? 'var(--color-income)' : 'var(--color-expense)',
+            color: balance.total > 0 ? 'var(--color-income)' : balance.total < 0 ? 'var(--color-expense)' : 'var(--text-secondary)',
             fontWeight: '700',
             opacity: 0.85
           }}>
-            {balance.total >= 0 ? '▲ Superávit' : '▼ Déficit'}
+            {balance.total > 0 ? '▲ Superávit' : balance.total < 0 ? '▼ Déficit' : '▬ Resultado neutro'}
           </span>
         </div>
 
-        {/* Tarjeta Saldo Final Acumulado — solo en modo Personalizado */}
+        {/* Tarjeta Saldo Final Acumulado: únicamente para filtro 'custom' (Personalizado) */}
         {filter === 'custom' && (
           <div className="kpi-card kpi-card-final glow-indigo" style={{
             backgroundColor: 'rgba(99, 102, 241, 0.02)'

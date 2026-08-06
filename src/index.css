@@ -155,15 +155,27 @@ input, select {
 /* Custom premium classes for Balance component */
 .date-picker-container {
   display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1.5rem;
+  flex-direction: column;
+  gap: 1.25rem;
   background-color: var(--bg-secondary);
   border: 1px solid var(--bg-tertiary);
   border-radius: var(--radius-lg);
   padding: 1.25rem;
   margin-bottom: 2rem;
+}
+
+.date-picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.date-picker-controls {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
   flex-wrap: wrap;
 }
 
@@ -292,6 +304,10 @@ input, select {
   grid-column: span 3;
 }
 
+.kpi-card-net-full {
+  grid-column: span 6;
+}
+
 .kpi-card-final {
   grid-column: span 3;
 }
@@ -300,7 +316,7 @@ input, select {
   .kpi-card-hero {
     grid-column: span 12;
   }
-  .kpi-card-net, .kpi-card-final {
+  .kpi-card-net, .kpi-card-net-full, .kpi-card-final {
     grid-column: span 6;
   }
 }
@@ -393,10 +409,7 @@ input, select {
   color: var(--color-expense);
 }
 
-/* RF-001: Ocultamiento de campos de rango cuando no es filtro personalizado */
-.date-range-inputs.hidden {
-  display: none;
-}
+
 
 /* RF-003: Ícono en KPI cards */
 .kpi-icon {
@@ -447,10 +460,18 @@ input, select {
 }
 
 .trend-no-data {
-  font-size: 0.7rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.72rem;
   color: var(--text-muted);
-  font-style: italic;
-  margin-top: 0.5rem;
+  font-weight: 500;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background-color: rgba(148, 163, 184, 0.08);
+  border: 1px dashed rgba(148, 163, 184, 0.2);
+  margin-top: 0.6rem;
+  width: fit-content;
 }
 
 /* ── RF-005: Export Button & Dropdown ─────────────────────────────────────── */

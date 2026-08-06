@@ -41,17 +41,39 @@ const formatARS = (n) =>
   new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(n);
 
 /**
- * Genera el texto del indicador de tendencia para exportación
+ * Genera el texto del indicador de tendencia para exportación (RN-006.1 & RN-006.2)
  */
-const trendText = (current, previous, hasData) => {
-  if (!hasData) return 'Sin datos comparativos disponibles';
-  if (previous === 0 && current === 0) return 'Sin variación';
-  if (previous === 0) return 'Nuevo período';
+const trendText = (current, previous, prevBalance, type = 'income') => {
+  const label = prevBalance?.label || 'vs. período anterior';
+  const hasPrevTransactions = prevBalance?.hasPrevTransactions ?? prevBalance?.hasData ?? false;
+  const hasCurrentTransactions = prevBalance?.hasCurrentTransactions ?? true;
+  const hasSystemHistory = prevBalance?.hasSystemHistory ?? false;
+
+  // RN-006.1: Mensajes informativos permitidos
+  if (!hasSystemHistory && !hasPrevTransactions) return 'Primer período registrado';
+  if (!hasPrevTransactions) {
+    if (!hasCurrentTransactions) return 'Sin movimientos para comparar';
+    return 'Sin movimientos en el período anterior';
+  }
+  if (previous === 0 && current !== 0) return 'Historial insuficiente para realizar la comparación';
+  if (previous === 0 && current === 0) return 'Sin movimientos para comparar';
+
   const pct = ((current - previous) / Math.abs(previous)) * 100;
   const abs = Math.abs(pct).toFixed(1).replace('.', ',');
-  if (pct > 0)  return `+${abs}% vs. mes anterior`;
-  if (pct < 0)  return `-${abs}% vs. mes anterior`;
-  return '0% vs. mes anterior';
+
+  // RN-006.2: Resultado Neto
+  if (type === 'net') {
+    if (current > 0) return `▲ ${pct > 0 ? `+${abs}%` : pct < 0 ? `-${abs}%` : '0%'} ${label}`;
+    if (current < 0) return `▼ ${pct < 0 ? `-${abs}%` : pct > 0 ? `+${abs}%` : '0%'} ${label}`;
+    return `▬ 0% ${label}`;
+  }
+
+  const isFavorable = type === 'expense' ? pct < 0 : pct > 0;
+  const symbol = isFavorable ? '▲' : '▼';
+
+  if (pct > 0) return `${symbol} +${abs}% ${label}`;
+  if (pct < 0) return `${symbol} -${abs}% ${label}`;
+  return `▬ 0% ${label}`;
 };
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -82,21 +104,21 @@ export function exportToExcel(payload) {
     ['Generado:', generatedAt.toLocaleString('es-AR')],
     [],
     ['RESUMEN FINANCIERO'],
-    ['Indicador', 'Valor', 'Tendencia vs. mes anterior'],
+    ['Indicador', 'Valor', `Tendencia ${prevBalance?.label || 'vs. período anterior'}`],
     [
       'Ingresos del Período',
       toNum(balance.income),
-      trendText(balance.income, prevBalance.income, prevBalance.hasData),
+      trendText(balance.income, prevBalance.income, prevBalance, 'income'),
     ],
     [
       'Egresos del Período',
       toNum(balance.expense),
-      trendText(balance.expense, prevBalance.expense, prevBalance.hasData),
+      trendText(balance.expense, prevBalance.expense, prevBalance, 'expense'),
     ],
     [
-      balance.total >= 0 ? 'Neto del Período (Superávit)' : 'Neto del Período (Déficit)',
+      balance.total > 0 ? 'Neto del Período (Superávit)' : balance.total < 0 ? 'Neto del Período (Déficit)' : 'Neto del Período (Resultado neutro)',
       toNum(balance.total),
-      trendText(balance.total, prevBalance.total, prevBalance.hasData),
+      trendText(balance.total, prevBalance.total, prevBalance, 'net'),
     ],
   ];
 
@@ -326,22 +348,22 @@ export function exportToPDF(payload) {
   autoTable(doc, {
     startY: cursorY,
     margin: { left: MARGIN, right: MARGIN },
-    head: [['Indicador', 'Valor', 'Tendencia vs. mes anterior']],
+    head: [['Indicador', 'Valor', `Tendencia ${prevBalance?.label || 'vs. período anterior'}`]],
     body: [
       [
         'Ingresos del Período',
         formatARS(balance.income),
-        trendText(balance.income, prevBalance.income, prevBalance.hasData),
+        trendText(balance.income, prevBalance.income, prevBalance, 'income'),
       ],
       [
         'Egresos del Período',
         formatARS(balance.expense),
-        trendText(balance.expense, prevBalance.expense, prevBalance.hasData),
+        trendText(balance.expense, prevBalance.expense, prevBalance, 'expense'),
       ],
       [
-        balance.total >= 0 ? 'Neto del Período (Superávit)' : 'Neto del Período (Déficit)',
+        balance.total > 0 ? 'Neto del Período (Superávit)' : balance.total < 0 ? 'Neto del Período (Déficit)' : 'Neto del Período (Resultado neutro)',
         formatARS(balance.total),
-        trendText(balance.total, prevBalance.total, prevBalance.hasData),
+        trendText(balance.total, prevBalance.total, prevBalance, 'net'),
       ],
     ],
     headStyles: {

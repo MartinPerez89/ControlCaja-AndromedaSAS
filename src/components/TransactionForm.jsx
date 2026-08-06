@@ -42,7 +42,7 @@ export default function TransactionForm() {
     time: currentTime,
     patientName: '',
     healthInsurance: '',
-    shift: 'afternoon',
+    shift: defaultShift,
     professional: 'Erika Morales',
     paymentPeriod: 'Semanal',
     extraNotes: ''
