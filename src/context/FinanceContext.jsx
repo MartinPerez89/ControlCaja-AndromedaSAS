@@ -66,19 +66,11 @@ export const FinanceProvider = ({ children }) => {
       return a.createdAt.localeCompare(b.createdAt);
     });
 
+    // RN-007.1: Acumular sobre el rango seleccionado únicamente (sin saldos anteriores/posteriores)
     let running = 0;
-    // Arrastrar el saldo previo acumulado antes de startDate
-    sorted.forEach(t => {
-      if (t.date < startDate) {
-        const val = Number(t.amount);
-        if (t.type === 'income') running += val;
-        else running -= val;
-      }
-    });
-
     const runningMap = {};
     sorted.forEach(t => {
-      if (t.date >= startDate) {
+      if (t.date >= startDate && t.date <= endDate) {
         const val = Number(t.amount);
         if (t.type === 'income') {
           running += val;
@@ -108,33 +100,12 @@ export const FinanceProvider = ({ children }) => {
   const filteredTransactions = getFilteredTransactions();
 
   const getBalance = () => {
-    let initialBalance = 0;
     let income = 0;
     let expense = 0;
 
-    const sortedTransactions = [...transactions].sort((a, b) => {
-      const dateCompare = a.date.localeCompare(b.date);
-      if (dateCompare !== 0) return dateCompare;
-      const timeA = a.time || '00:00';
-      const timeB = b.time || '00:00';
-      const timeCompare = timeA.localeCompare(timeB);
-      if (timeCompare !== 0) return timeCompare;
-      return a.createdAt.localeCompare(b.createdAt);
-    });
-
-    sortedTransactions.forEach(t => {
-      const val = Number(t.amount);
-      const isBefore = t.date < startDate;
-      const isIn = t.date >= startDate && t.date <= endDate;
-
-      // Arrastrar saldo acumulado previo a startDate
-      if (isBefore) {
-        if (t.type === 'income') {
-          initialBalance += val;
-        } else {
-          initialBalance -= val;
-        }
-      } else if (isIn) {
+    transactions.forEach(t => {
+      if (t.date >= startDate && t.date <= endDate) {
+        const val = Number(t.amount);
         if (t.type === 'income') {
           income += val;
         } else {
@@ -143,12 +114,14 @@ export const FinanceProvider = ({ children }) => {
       }
     });
 
+    const total = income - expense;
+
     return {
-      initialBalance,
+      initialBalance: 0,
       income,
       expense,
-      total: income - expense,
-      finalBalance: initialBalance + (income - expense)
+      total,
+      finalBalance: total
     };
   };
 

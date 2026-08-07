@@ -218,7 +218,7 @@ export default function BalanceDashboard() {
     return pct % 1 === 0 ? `${pct.toFixed(0)}%` : `${pct.toFixed(1)}%`;
   };
 
-  // Calculate daily breakdown for the current date range with running balance
+  // Calculate daily breakdown for the current date range with running balance (RN-007)
   const getDailyBreakdown = () => {
     const dailyData = {};
     filteredTransactions.forEach(t => {
@@ -236,7 +236,8 @@ export default function BalanceDashboard() {
     // Sort ascending to calculate running balance chronologically
     const sortedDates = Object.keys(dailyData).sort((a, b) => a.localeCompare(b));
 
-    let currentRunning = balance.initialBalance;
+    // RN-007.1 & RN-007.2: Acumulación progresiva sobre netos diarios desde 0 en t0
+    let currentRunning = 0;
     const breakdown = [];
 
     sortedDates.forEach(date => {
@@ -438,9 +439,9 @@ export default function BalanceDashboard() {
           </div>
         </div>
 
-        {/* Tarjeta Neto del Período */}
+        {/* Tarjeta Neto del Período (RN-007.3: Coherente en todos los filtros) */}
         <div
-          className={`kpi-card ${filter === 'custom' ? 'kpi-card-net' : 'kpi-card-net-full'} ${balance.total > 0 ? 'glow-income' : balance.total < 0 ? 'glow-expense' : ''}`}
+          className={`kpi-card kpi-card-net-full ${balance.total > 0 ? 'glow-income' : balance.total < 0 ? 'glow-expense' : ''}`}
           style={{
             backgroundColor: balance.total > 0 ? 'rgba(16, 185, 129, 0.02)' : balance.total < 0 ? 'rgba(244, 63, 94, 0.02)' : 'rgba(148, 163, 184, 0.02)'
           }}
@@ -470,43 +471,6 @@ export default function BalanceDashboard() {
             {balance.total > 0 ? '▲ Superávit' : balance.total < 0 ? '▼ Déficit' : '▬ Resultado neutro'}
           </span>
         </div>
-
-        {/* Tarjeta Saldo Final Acumulado: únicamente para filtro 'custom' (Personalizado) */}
-        {filter === 'custom' && (
-          <div className="kpi-card kpi-card-final glow-indigo" style={{
-            backgroundColor: 'rgba(99, 102, 241, 0.02)'
-          }}>
-            <div>
-              <span className="kpi-icon">📊</span>
-              <span className="kpi-title" style={{ color: 'var(--accent-primary)', fontWeight: '700' }}>
-                Saldo Final (Acumulado)
-              </span>
-              <div className="kpi-value" style={{
-                color: balance.finalBalance >= 0 ? 'var(--color-income)' : 'var(--color-expense)',
-                marginTop: '0.25rem'
-              }}>
-                {formatCurrency(balance.finalBalance)}
-              </div>
-            </div>
-            <div className="kpi-subtext" style={{
-              borderTop: '1px solid rgba(255, 255, 255, 0.06)',
-              paddingTop: '0.5rem',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              flexWrap: 'wrap',
-              gap: '0.25rem'
-            }}>
-              <span>Saldo previo:</span>
-              <span style={{
-                fontWeight: '600',
-                color: balance.initialBalance >= 0 ? 'var(--text-secondary)' : 'rgba(244, 63, 94, 0.8)'
-              }}>
-                {formatCurrency(balance.initialBalance)}
-              </span>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* ── Desglose por Categoría ── */}
@@ -698,9 +662,13 @@ export default function BalanceDashboard() {
                       padding: '0.75rem 0.5rem',
                       textAlign: 'right',
                       fontWeight: 'bold',
-                      color: day.runningBalance >= 0 ? 'var(--color-income)' : 'var(--color-expense)'
+                      color: day.runningBalance > 0
+                        ? 'var(--color-income)'
+                        : day.runningBalance < 0
+                          ? 'var(--color-expense)'
+                          : 'var(--text-secondary)'
                     }}>
-                      {formatCurrency(day.runningBalance)}
+                      {day.runningBalance > 0 ? `+${formatCurrency(day.runningBalance)}` : formatCurrency(day.runningBalance)}
                     </td>
                   </tr>
                 ))}
